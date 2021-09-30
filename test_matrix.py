@@ -1,4 +1,4 @@
-from re_utils import phrasal_verb_recognizer,create_mapping,matrix_compress,get_certain_attention_matrix
+from utils import phrasal_verb_recognizer,create_mapping,matrix_compress,get_certain_attention_matrix
 from transformers import AutoTokenizer, BertModel, GPT2Model
 import spacy
 import torch

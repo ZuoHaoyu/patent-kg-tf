@@ -1,19 +1,36 @@
 import sys, os
-from process import parse_sentence
-from mapper import Map, deduplication
-from transformers import AutoTokenizer, BertModel, GPT2Model
+from process import process_sentence
+from utils import AttnMapExtractor
+from mapper import re_join, deduplication
 import argparse
-import en_core_web_md
 from tqdm import tqdm
 import json
-import spacy
+from spacy.language import Language
 import re
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
+import spacy
+from spacy.lang.char_classes import ALPHA, ALPHA_LOWER, ALPHA_UPPER
+from spacy.lang.char_classes import CONCAT_QUOTES, LIST_ELLIPSES, LIST_ICONS
+from spacy.util import compile_infix_regex
+from bert import tokenization, modeling
+import numpy as np
+
+## the format of how to store the relations##
+## appln_id:{__: {name:__ CPC:___ relations:___} }
+
+# os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
+file_path= '../patstat_process/patent_dic.json'
 
 
 def str2bool(v):
+
+    """
+    convert the str to 'True' or 'False'
+    """
+
+
     if isinstance(v, bool):
-       return v
+        return v
     if v.lower() in ('yes', 'true', 't', 'y', '1'):
         return True
     elif v.lower() in ('no', 'false', 'f', 'n', '0'):
@@ -21,10 +38,11 @@ def str2bool(v):
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
 
+# parse the input argument
 parser = argparse.ArgumentParser(description='Process lines of text corpus into knowledgraph')
-parser.add_argument('--input_filename', default = 'examples/patent_example_1.txt',type=str, help='text file as input')
+parser.add_argument('--input_filename', default = 'patent_data/patent_test_example.json',type=str, help='text file as input')
 # parser.add_argument('input_filename', type=str, help='text file as input')
-parser.add_argument('--output_filename', default='patent_example_test_1_fi_tail_distance_adv_1.json',type = str, help='output text file')
+parser.add_argument('--output_filename', default='patent_data/patent_test_example_result.json',type = str, help='output text file')
 # parser.add_argument('output_filename', type=str, help='output text file')
 parser.add_argument('--language_model',default='bert-large-cased',
                     choices=[ 'bert-large-uncased', 'bert-large-cased', 'bert-base-uncased', 'bert-base-cased', 'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl','allenai/scibert_scivocab_uncased'],
@@ -32,87 +50,129 @@ parser.add_argument('--language_model',default='bert-large-cased',
 # parser.add_argument('--language_model',default='bert-base-cased',
 #                     choices=[ 'bert-large-uncased', 'bert-large-cased', 'bert-base-uncased', 'bert-base-cased', 'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl','allenai/scibert_scivocab_uncased'],
 #                     help='which language model to use')
-parser.add_argument('--use_cuda', default=True, 
+parser.add_argument('--use_cuda', default=False,
                         type=str2bool, nargs='?',
                         help="Use cuda?")
-parser.add_argument('--include_text_output', default=False, 
+parser.add_argument('--include_text_output', default=False,
                         type=str2bool, nargs='?',
                         help="Include original sentence in output")
 parser.add_argument('--spacy_model',default='en_core_web_md',
                     choices=['en_core_sci_lg', 'en_core_web_md', 'en_ner_bc5cdr_md'],
                     help='which spacy model to use')
-parser.add_argument('--threshold', default=0.041, 
+parser.add_argument('--threshold', default=0.041,
                         type=float, help="Any attention score lower than this is removed")
-
 args = parser.parse_args()
 
+
 use_cuda = args.use_cuda
-nlp = spacy.load(args.spacy_model)
+nlp =spacy.load(args.spacy_model)
+# overwrite to add the boundry rule, add ';'
+@Language.component("set_custom_boundaries")
+def set_custom_boundaries(doc):
+    for token in doc[:-1]:
+        if token.text == ";":
+            doc[token.i + 1].is_sent_start = True
+    return doc
+nlp.add_pipe("set_custom_boundaries", before="parser")
 
-'''Create
-Tested language model:
 
-1. bert-base-cased
 
-2. gpt2-medium
 
-Basically any model that belongs to this family should work
+# Modify tokenizer infix patterns
+infixes = (
+    LIST_ELLIPSES
+    + LIST_ICONS
+    + [
+        r"(?<=[0-9])[+\-\*^](?=[0-9-])",
+        r"(?<=[{al}{q}])\.(?=[{au}{q}])".format(
+            al=ALPHA_LOWER, au=ALPHA_UPPER, q=CONCAT_QUOTES
+        ),
+        r"(?<=[{a}]),(?=[{a}])".format(a=ALPHA),
+        # ✅ Commented out regex that splits on hyphens between letters:
+        # r"(?<=[{a}])(?:{h})(?=[{a}])".format(a=ALPHA, h=HYPHENS),
+        r"(?<=[{a}0-9])[:<>=/](?=[{a}])".format(a=ALPHA),
+    ]
+)
 
-'''
+infix_re = compile_infix_regex(infixes)
+nlp.tokenizer.infix_finditer = infix_re.finditer
 
-language_model = args.language_model
+
+
 
 
 if __name__ == '__main__':
-    tokenizer = AutoTokenizer.from_pretrained(language_model)
-    if 'gpt2' in language_model:
-        encoder = GPT2Model.from_pretrained(language_model)
-    else:
-        encoder = BertModel.from_pretrained(language_model)
-    encoder.eval()
-    if use_cuda:
-        encoder = encoder.cuda()    
+    language_model = args.language_model
     input_filename = args.input_filename
     output_filename = args.output_filename
     include_sentence = args.include_text_output
+    cased = True
+    bert_dir = "bert/uncased_L-12_H-768_A-12"
 
-    with open(input_filename, 'r') as f, open(output_filename, 'w') as g:
-        for idx, line in enumerate(tqdm(f)):
-            ##modification starts below###
-            #         sentence= line.strip()
-            sentence = re.sub(' +', ' ',line.strip().lower())
-            #modification ends here###
-            if len(sentence):
+    extractor = AttnMapExtractor(
+        os.path.join(bert_dir, "bert_config.json"),
+        os.path.join(bert_dir, "bert_model.ckpt"),
+        max_sequence_length=512, debug=False
+    )
+
+    tokenizer = tokenization.FullTokenizer(
+        vocab_file=os.path.join(bert_dir, "vocab.txt"),
+        do_lower_case=cased)
+
+    count = 0
+
+    with open(input_filename, 'r') as f, open(output_filename, 'a+') as g:
+
+        bulk = json.load(f)
+        # the patent data is in the format of dictionary
+        # {"appln_id": {"appln_title":....,"appln_abstract":...,"CPC_class_symbol":[..,..]},"appln_id":......}
+
+        for key, value in tqdm(bulk.items()):
+            count = count+1
+            # if count==150580 or count ==87932:
+
+            #  number hasnt fixed, 87931 ,150579 , 183765 with '\t' inside
+
+
+            if type(value['appln_abstract']) is str:
+                sentence = re.sub(' +', ' ', value['appln_abstract'].strip().lower())
+            # modification ends here###
+            # if len(sentence):
                 valid_triplets = []
+                count=0
                 for sent in nlp(sentence).sents:
-                    # Match
-                    
-                    for triplets in parse_sentence(sent.text, tokenizer, encoder, nlp, use_cuda=use_cuda):
+                    for triplets in process_sentence(sent.text, tokenizer,nlp,extractor, use_cuda=use_cuda):
                         valid_triplets.append(triplets)
-                    print ('done-------------------')
-                print (valid_triplets)
+
+                # TODO time count found the session part takes 52.79 s, the all processing time is 53.76s
                 if len(valid_triplets) > 0:
                     # Map
                     mapped_triplets = []
-                    articles  = ['a','an','the']
+                    articles = ['a ', 'an ', 'the ']
+                    con_list = []
+                    for triplet in valid_triplets:
+                        con_list.append(triplet['c'])
+                    median = np.median(con_list)
                     for triplet in valid_triplets:
                         head = triplet['h']
                         tail = triplet['t']
                         relations = triplet['r']
                         for article in articles:
-                            head=head.lstrip(article).strip()
-                            tail = tail.lstrip(article).strip()
-                            relations = relations.lstrip(article).strip()
+                            head = head.replace(article, '')
+                            tail = tail.replace(article, '')
+                            relations = relations.replace(article, '')
                         conf = triplet['c']
-                        if conf < args.threshold:
+                        # if conf < args.threshold:
+                        # if conf< median:
+                        if conf<0.01:
                             continue
-                        mapped_triplet = Map(head, relations, tail)
+                        mapped_triplet = re_join(head, relations, tail)
                         if 'h' in mapped_triplet:
                             mapped_triplet['c'] = conf
                             mapped_triplets.append(mapped_triplet)
-                    output = { 'line': idx, 'tri': deduplication(mapped_triplets) }
+                    output = {'appln_id': key, 'relationships': deduplication(mapped_triplets)}
 
                     if include_sentence:
                         output['sent'] = sentence
-                    if len(output['tri']) > 0:
-                        g.write(json.dumps( output )+'\n')
+                    if len(output['relationships']) > 0:
+                        g.write(json.dumps(output) + '\n')

@@ -14,7 +14,6 @@ for token in doc:
     print(token.text, token.lemma_, token.pos_, token.tag_, token.dep_,
           token.shape_, token.is_alpha, token.is_stop)
 
-
 svg = displacy.render(doc, style="dep", jupyter=False)
 
 output_path = Path("images/test.svg")
