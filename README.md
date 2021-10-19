@@ -2,7 +2,7 @@
 ## patent-kg
 
 ## 执行
-按照requirements安装环境，推荐conda/venv  
+ubuntu环境，按照requirements安装执行环境，推荐conda/venv  
 
 直接执行extract.py文件  
 
