@@ -44,9 +44,9 @@ parser.add_argument('--input_filename', default = 'patent_data/patent_test_examp
 # parser.add_argument('input_filename', type=str, help='text file as input')
 parser.add_argument('--output_filename', default='patent_data/patent_test_example_result.json',type = str, help='output text file')
 # parser.add_argument('output_filename', type=str, help='output text file')
-parser.add_argument('--language_model',default='bert-large-cased',
-                    choices=[ 'bert-large-uncased', 'bert-large-cased', 'bert-base-uncased', 'bert-base-cased', 'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl','allenai/scibert_scivocab_uncased'],
-                    help='which language model to use')
+# parser.add_argument('--language_model',default='bert-large-cased',
+#                     choices=[ 'bert-large-uncased', 'bert-large-cased', 'bert-base-uncased', 'bert-base-cased', 'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl','allenai/scibert_scivocab_uncased'],
+#                     help='which language model to use')
 # parser.add_argument('--language_model',default='bert-base-cased',
 #                     choices=[ 'bert-large-uncased', 'bert-large-cased', 'bert-base-uncased', 'bert-base-cased', 'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl','allenai/scibert_scivocab_uncased'],
 #                     help='which language model to use')
@@ -102,7 +102,7 @@ nlp.tokenizer.infix_finditer = infix_re.finditer
 
 
 if __name__ == '__main__':
-    language_model = args.language_model
+    # language_model = args.language_model
     input_filename = args.input_filename
     output_filename = args.output_filename
     include_sentence = args.include_text_output
