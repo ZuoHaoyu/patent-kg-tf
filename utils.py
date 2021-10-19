@@ -91,12 +91,21 @@ def create_mapping(sentence, return_pt=False, nlp=None, tokenizer=None):
     verb_phrase_start_chunk = []
     verb_phrase_end_chunk = []
     verb_phrase_chunk = []
-
+    start_holder=-1
+    end_holder=-2
     for match_id, start, end in matches:
+        start_holder=start
+        if start_holder<end_holder:
+            continue
         span = doc[start:end]
         verb_phrase_start_chunk.append(start)
         verb_phrase_end_chunk.append(end)
         verb_phrase_chunk.append(span.text)
+        end_holder=end
+
+
+
+
 
 
     noun_start_chunk = []
@@ -147,7 +156,9 @@ def create_mapping(sentence, return_pt=False, nlp=None, tokenizer=None):
     # TODO sentence mapping is also not appropriate , should be sentence_seg
 
 
+    mode=0
     for idx, token in enumerate(doc):
+
         if idx in start_chunk:
             mode = 1
             sentence_mapping.append(chunks[chunk_id])
@@ -224,10 +235,32 @@ def matrix_compress(attention, tokenid2word_mapping):
     :param tokenid2word_mapping:
     :return:
     """
-    tokenid_set = list(set(tokenid2word_mapping))
+
     operate_list=[]
+
+    # tokenid_set should be in the same sequence of a deduplicated tokenid2word_mapping list
+
+    def depulicate (x):
+        mark=-1
+        depulicated_x=[]
+        for i in x:
+            if i !=mark:
+                depulicated_x.append(i)
+                mark=i
+        return depulicated_x
+
+    tokenid_set = depulicate(tokenid2word_mapping)
+
+
     for tokenid in tokenid_set:
+
         operate_list.append( [i for i, x in enumerate(tokenid2word_mapping) if x == tokenid])
+
+    #     shouldn't be the set of tokenid2wordmapping, will remove duplicate words' positio
+    #     the lenght should be the word2id
+    #     operate_list, remake
+    #     should combine the
+
     b = np.vstack([np.mean(attention[operate_list[n], :], 0) for n in range(len(tokenid_set))])
     c = np.vstack([np.sum(b[:, operate_list[n]], 1) for n in range(len(tokenid_set))]).T
     return c

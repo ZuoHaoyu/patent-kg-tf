@@ -16,7 +16,7 @@ def process_sentence(sentence, tokenizer, nlp,extractor, use_cuda=True):
     :param nlp:  spacy mode to recognize noun phrase and verb phrase
     :param extractor: attention extractor sess
     :param use_cuda:
-    :return: triplets result --> ({'h': head, 't': tail, 'r': relations, 'c': confidence})
+    :return: riplets result --> ({'h': head, 't': tail, 'r': relations, 'c': confidence})
     """
 
     ###modification starts below, adding id2token in the returned parameters
@@ -64,8 +64,10 @@ def process_sentence(sentence, tokenizer, nlp,extractor, use_cuda=True):
     # merged_attention = compress_attention(attention, tokenid2word_mapping)
     merged_attention = matrix_compress(attention, tokenid2word_mapping)
 
-    attn_graph = build_graph(merged_attention)
 
+
+    attn_graph = build_graph(merged_attention)
+    # TODO at is not recoginized when at the start?
     #############modification starts here ################
 
     i = 0
