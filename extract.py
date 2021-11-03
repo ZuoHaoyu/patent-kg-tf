@@ -12,6 +12,7 @@ from spacy.lang.char_classes import ALPHA, ALPHA_LOWER, ALPHA_UPPER
 from spacy.lang.char_classes import CONCAT_QUOTES, LIST_ELLIPSES, LIST_ICONS
 from spacy.util import compile_infix_regex
 from bert import tokenization, modeling
+import tensorflow as tf
 import numpy as np
 
 ## the format of how to store the relations##
@@ -40,9 +41,9 @@ def str2bool(v):
 
 # parse the input argument
 parser = argparse.ArgumentParser(description='Process lines of text corpus into knowledgraph')
-parser.add_argument('--input_filename', default = 'patent_data/patent_test_example.json',type=str, help='text file as input')
+parser.add_argument('--input_filename', default = 'patent_data/sample_json.json',type=str, help='text file as input')
 # parser.add_argument('input_filename', type=str, help='text file as input')
-parser.add_argument('--output_filename', default='patent_data/patent_test_example_result.json',type = str, help='output text file')
+parser.add_argument('--output_filename', default='patent_data/sample_result.json',type = str, help='output text file')
 # parser.add_argument('output_filename', type=str, help='output text file')
 # parser.add_argument('--language_model',default='bert-large-cased',
 #                     choices=[ 'bert-large-uncased', 'bert-large-cased', 'bert-base-uncased', 'bert-base-cased', 'gpt2', 'gpt2-medium', 'gpt2-large', 'gpt2-xl','allenai/scibert_scivocab_uncased'],
@@ -121,58 +122,61 @@ if __name__ == '__main__':
 
     count = 0
 
+
+
     with open(input_filename, 'r') as f, open(output_filename, 'a+') as g:
 
         bulk = json.load(f)
         # the patent data is in the format of dictionary
         # {"appln_id": {"appln_title":....,"appln_abstract":...,"CPC_class_symbol":[..,..]},"appln_id":......}
+        with tf.Session() as sess:
+            sess.run(tf.global_variables_initializer())  # ????
+            for key, value in tqdm(bulk.items()):
+                count = count+1
+                # if count==150580 or count ==87932:
 
-        for key, value in tqdm(bulk.items()):
-            count = count+1
-            # if count==150580 or count ==87932:
-
-            #  number hasnt fixed, 87931 ,150579 , 183765 with '\t' inside
+                #  number hasnt fixed, 87931 ,150579 , 183765 with '\t' inside
 
 
-            if type(value['appln_abstract']) is str:
-                sentence = re.sub(' +', ' ', value['appln_abstract'].strip().lower())
-            # modification ends here###
-            # if len(sentence):
-                valid_triplets = []
-                count=0
-                for sent in nlp(sentence).sents:
-                    for triplets in process_sentence(sent.text, tokenizer,nlp,extractor, use_cuda=use_cuda):
-                        valid_triplets.append(triplets)
+                if type(value['appln_abstract']) is str:
+                    sentence = re.sub(' +', ' ', value['appln_abstract'].strip().lower())
+                # modification ends here###
+                # if len(sentence):
+                    valid_triplets = []
+                    count=0
+                    for sent in nlp(sentence).sents:
+                        for triplets in process_sentence(sent.text, tokenizer,nlp,extractor, sess,use_cuda=use_cuda):
+                            valid_triplets.append(triplets)
 
-                # TODO time count found the session part takes 52.79 s, the all processing time is 53.76s
-                if len(valid_triplets) > 0:
-                    # Map
-                    mapped_triplets = []
-                    articles = ['a ', 'an ', 'the ']
-                    con_list = []
-                    for triplet in valid_triplets:
-                        con_list.append(triplet['c'])
-                    median = np.median(con_list)
-                    for triplet in valid_triplets:
-                        head = triplet['h']
-                        tail = triplet['t']
-                        relations = triplet['r']
-                        for article in articles:
-                            head = head.replace(article, '')
-                            tail = tail.replace(article, '')
-                            relations = relations.replace(article, '')
-                        conf = triplet['c']
-                        # if conf < args.threshold:
-                        # if conf< median:
-                        if conf<0.01:
-                            continue
-                        mapped_triplet = re_join(head, relations, tail)
-                        if 'h' in mapped_triplet:
-                            mapped_triplet['c'] = conf
-                            mapped_triplets.append(mapped_triplet)
-                    output = {'appln_id': key, 'relationships': deduplication(mapped_triplets)}
+                    # TODO time count found the session part takes 52.79 s, the all processing time is 53.76s
+                    if len(valid_triplets) > 0:
+                        # Map
+                        mapped_triplets = []
+                        articles = ['a ', 'an ', 'the ']
+                        con_list = []
+                        for triplet in valid_triplets:
+                            con_list.append(triplet['c'])
+                        median = np.median(con_list)
+                        for triplet in valid_triplets:
+                            head = triplet['h']
+                            tail = triplet['t']
+                            relations = triplet['r']
+                            for article in articles:
+                                head = head.replace(article, '')
+                                tail = tail.replace(article, '')
+                                relations = relations.replace(article, '')
+                            conf = triplet['c']
+                            # if conf < args.threshold:
+                            # if conf< median:
+                            if conf<0.01:
+                                continue
+                            mapped_triplet = re_join(head, relations, tail)
+                            if 'h' in mapped_triplet:
+                                mapped_triplet['c'] = conf
+                                mapped_triplets.append(mapped_triplet)
+                        output = {'appln_id': key, 'relationships': deduplication(mapped_triplets)}
 
-                    if include_sentence:
-                        output['sent'] = sentence
-                    if len(output['relationships']) > 0:
-                        g.write(json.dumps(output) + '\n')
+                        if include_sentence:
+                            output['sent'] = sentence
+                        if len(output['relationships']) > 0:
+                            g.write(json.dumps(output) + '\n')

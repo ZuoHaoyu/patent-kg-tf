@@ -8,7 +8,7 @@ import os
 import time
 
 
-def process_sentence(sentence, tokenizer, nlp,extractor, use_cuda=True):
+def process_sentence(sentence, tokenizer, nlp,extractor, sess,use_cuda=True):
     """
     process a single stence into triplets result --> ({'h': head, 't': tail, 'r': relations, 'c': confidence})
     :param sentence: sentence
@@ -47,12 +47,15 @@ def process_sentence(sentence, tokenizer, nlp,extractor, use_cuda=True):
     feature_dicts_with_attn = []
     # with tf.Session(config=tf.ConfigProto(log_device_placement=True)) as sess:
     start_time= time.time()
-    with tf.Session( ) as sess:
-        sess.run(tf.global_variables_initializer())  # ????
-        attns = extractor.get_attn_maps(sess, inputs)
-        attns = tf.squeeze(attns)
-        attns = attns[:, :, 0:length_after_tokenizer, 0:length_after_tokenizer]
-        attns = attns.eval(session=sess)
+    # with tf.Session( ) as sess:
+    #     sess.run(tf.global_variables_initializer())  # ????
+
+    attns = extractor.get_attn_maps(sess, inputs)
+    # attns = tf.squeeze(attns)
+    attns=np.squeeze(attns)
+    attns = attns[:, :, 0:length_after_tokenizer, 0:length_after_tokenizer]
+    # attns = attns.eval(session=sess)
+    sess.graph.finalize()
     # TODO time count found the session part takes 52.79 s, the all processing time is 53.76s
 
     end_time=time.time()
