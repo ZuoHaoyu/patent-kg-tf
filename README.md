@@ -2,10 +2,13 @@
 ## patent-kg
 
 ## 执行
-按照requirements安装环境，推荐conda/venv
-直接执行extract.py文件
-其中argparse已经给定default值，
-调整input_filename和output_filename至个人文件位置
+ubuntu环境，按照requirements安装执行环境，推荐conda/venv  
+
+直接执行extract.py文件  
+
+其中argparse已经给定default值，  
+
+调整input_filename和output_filename至个人文件位置  
 
 同样也可以
 ```
