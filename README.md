@@ -1,25 +1,26 @@
 # patent-kg-tf
 ## patent-kg
 
-## 执行
-ubuntu环境，按照requirements安装执行环境，推荐conda/venv  
+## execution
+For Ubuntu environment, install the runtime environment according to the requirements; conda/venv is recommended.
 
-直接执行extract.py文件  
+Run the extract.py file directly.
 
-其中argparse已经给定default值，  
+Default values for argparse have already been provided.
 
-调整input_filename和output_filename至个人文件位置  
+Adjust input_filename and output_filename to your personal file locations.
 
-同样也可以
+You can also use:
 ```
 python extract.py examples/example.json examples/example_result.json  --use_cuda true
 
 ```
 
-## 注意
-tf版本为1.4  
+## note
+The TensorFlow version is 1.4.
 
-未加入batch运算 （慢）
+Batch processing has not been added (slow).
 
-最后的筛选adverb_list, 和 confidence设置 不是最终版本
+The final filtering for adverb_list and confidence settings are not in their final versions.
+
 
